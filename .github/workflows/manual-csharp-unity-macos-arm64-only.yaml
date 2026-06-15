@@ -1,0 +1,37 @@
+name: Manual grpc_unity_package.bundle (macOS ARM64)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-bundle-arm64-only:
+    runs-on: macos-14
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup CMake 3.x
+        uses: lukka/get-cmake@latest
+        with:
+          cmakeVersion: 3.31.6
+
+      - name: Build grpc_csharp_ext for macOS arm64
+        run: |
+          rm -rf cmake/build
+          mkdir -p artifacts/csharp_ext_macos_arm64
+          ARTIFACTS_OUT="$GITHUB_WORKSPACE/artifacts/csharp_ext_macos_arm64" GRPC_CSHARP_BUILD_EXT_ARCH=arm64 bash tools/run_tests/artifacts/build_artifact_csharp.sh
+
+      - name: Create grpc_unity_package.bundle
+        run: |
+          mkdir -p artifacts
+          cp artifacts/csharp_ext_macos_arm64/libgrpc_csharp_ext.dylib artifacts/grpc_unity_package.bundle
+
+      - name: Upload grpc_unity_package.bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: grpc_unity_package.bundle
+          path: artifacts/grpc_unity_package.bundle
