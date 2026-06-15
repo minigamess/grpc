@@ -707,8 +707,11 @@ TEST_P(SettingsPromiseManagerTest,
   // Purpose: Verify BufferPeerSettings returns a non-Ok status for invalid
   // initial window size.
   SettingsPromiseManager manager = MakeManager();
-  const Http2Status status = manager.BufferPeerSettings(
-      {{Http2Settings::kInitialWindowSizeWireId, RFC9113::kMaxSize31Bit + 1u}});
+  http2::ValueOrHttp2Status<SettingsPromiseManager::UrgentSettings> status_or =
+      manager.BufferPeerSettings({{Http2Settings::kInitialWindowSizeWireId,
+                                   RFC9113::kMaxSize31Bit + 1u}});
+  const Http2Status status = http2::ValueOrHttp2Status<
+      SettingsPromiseManager::UrgentSettings>::TakeStatus(std::move(status_or));
   EXPECT_FALSE(status.IsOk());
   EXPECT_EQ(status.GetType(), Http2Status::Http2ErrorType::kConnectionError);
   EXPECT_EQ(status.GetConnectionErrorCode(), Http2ErrorCode::kFlowControlError);
@@ -723,8 +726,12 @@ TEST_P(SettingsPromiseManagerTest,
   // Purpose: Verify BufferPeerSettings returns a non-Ok status for invalid
   // max frame size.
   SettingsPromiseManager manager = MakeManager();
-  const Http2Status status = manager.BufferPeerSettings(
-      {{Http2Settings::kMaxFrameSizeWireId, RFC9113::kMinimumFrameSize - 1u}});
+  http2::ValueOrHttp2Status<SettingsPromiseManager::UrgentSettings> status_or2 =
+      manager.BufferPeerSettings({{Http2Settings::kMaxFrameSizeWireId,
+                                   RFC9113::kMinimumFrameSize - 1u}});
+  const Http2Status status =
+      http2::ValueOrHttp2Status<SettingsPromiseManager::UrgentSettings>::
+          TakeStatus(std::move(status_or2));
   EXPECT_FALSE(status.IsOk());
   EXPECT_EQ(status.GetType(), Http2Status::Http2ErrorType::kConnectionError);
   EXPECT_EQ(status.GetConnectionErrorCode(), Http2ErrorCode::kProtocolError);
@@ -732,6 +739,27 @@ TEST_P(SettingsPromiseManagerTest,
   EXPECT_FALSE(absl_status.ok());
   EXPECT_THAT(absl_status.message(),
               ::testing::StartsWith(RFC9113::kIncorrectFrameSizeSetting));
+}
+
+TEST_P(SettingsPromiseManagerTest, BufferPeerSettingsUrgentSettingsTest) {
+  // Purpose: Test urgent setting detection on peer initial window size.
+  SettingsPromiseManager manager = MakeManager();
+  // We reduce initial window size.
+  // This should trigger the urgent setting flag.
+  http2::ValueOrHttp2Status<SettingsPromiseManager::UrgentSettings> status_or =
+      manager.BufferPeerSettings(
+          {{Http2Settings::kInitialWindowSizeWireId,
+            Http2Settings::kDefaultInitialWindowSize - 100u}});
+  EXPECT_TRUE(status_or.IsOk());
+  EXPECT_TRUE(status_or.value().is_urgent_setting);
+
+  // We do not reduce the window size.
+  // This should not trigger the flag.
+  http2::ValueOrHttp2Status<SettingsPromiseManager::UrgentSettings> status_or2 =
+      manager.BufferPeerSettings({{Http2Settings::kInitialWindowSizeWireId,
+                                   Http2Settings::kDefaultInitialWindowSize}});
+  EXPECT_TRUE(status_or2.IsOk());
+  EXPECT_FALSE(status_or2.value().is_urgent_setting);
 }
 
 INSTANTIATE_TEST_SUITE_P(IsClient, SettingsPromiseManagerTest,

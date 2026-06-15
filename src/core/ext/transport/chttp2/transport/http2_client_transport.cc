@@ -401,21 +401,23 @@ Http2Status Http2ClientTransport::ProcessIncomingFrame(
 Http2Status Http2ClientTransport::ProcessIncomingFrame(
     Http2SettingsFrame&& frame) {
   // https://www.rfc-editor.org/rfc/rfc9113.html#name-settings
-
   GRPC_HTTP2_CLIENT_DLOG
       << "Http2ClientTransport::ProcessIncomingFrame(SettingsFrame) { ack="
       << frame.ack << ", settings length=" << frame.settings.size() << "}";
 
   if (!frame.ack) {
-    Http2Status s = settings_->BufferPeerSettings(std::move(frame.settings));
+    ValueOrHttp2Status<SettingsPromiseManager::UrgentSettings> s =
+        settings_->BufferPeerSettings(std::move(frame.settings));
     if (!s.IsOk()) {
-      return s;
+      return ValueOrHttp2Status<
+          SettingsPromiseManager::UrgentSettings>::TakeStatus(std::move(s));
     }
     absl::Status trigger_write_status = TriggerWriteCycle();
     if (!trigger_write_status.ok()) {
       return ToHttpOkOrConnError(trigger_write_status);
     }
-    if (GPR_UNLIKELY(!settings_->IsFirstPeerSettingsApplied())) {
+    if (GPR_UNLIKELY(!settings_->IsFirstPeerSettingsApplied() ||
+                     s.value().is_urgent_setting)) {
       // Apply the first settings before we read any other frames.
       read_context_.SetPauseReadLoop();
     }

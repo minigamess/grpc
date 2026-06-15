@@ -208,14 +208,19 @@ class SettingsPromiseManager final : public RefCounted<SettingsPromiseManager> {
   //////////////////////////////////////////////////////////////////////////////
   // Functions for SETTINGS being received from the peer.
 
+  struct UrgentSettings {
+    bool is_urgent_setting = false;
+  };
+
   // Buffers SETTINGS frames received from peer.
   // Buffered to apply settings at start of next write cycle, only after
   // SETTINGS ACK is written to the endpoint.
-  http2::Http2Status BufferPeerSettings(
+  http2::ValueOrHttp2Status<UrgentSettings> BufferPeerSettings(
       std::vector<Http2SettingsFrame::Setting>&& settings) {
+    UrgentSettings urgent;
     http2::Http2Status status = ValidateSettingsValues(settings);
     if (!status.IsOk()) {
-      return status;
+      return std::move(status);
     }
     if (state_ == SettingsState::kWaitingForFirstPeerSettings) {
       state_ = SettingsState::kFirstPeerSettingsReceived;
@@ -225,10 +230,11 @@ class SettingsPromiseManager final : public RefCounted<SettingsPromiseManager> {
       // RFC9113: An endpoint that receives a SETTINGS frame with any unknown or
       // unsupported identifier MUST ignore that setting.
       if (Http2Settings::IsKnownSettingId(setting.id)) {
+        urgent.is_urgent_setting |= IsUrgentSetting(setting.id, setting.value);
         pending_peer_settings_[setting.id] = setting.value;
       }
     }
-    return http2::Http2Status::Ok();
+    return urgent;
   }
 
   // Applies settings buffered by BufferPeerSettings().
@@ -335,15 +341,19 @@ class SettingsPromiseManager final : public RefCounted<SettingsPromiseManager> {
   };
 
  private:
-  Http2SettingsManager settings_;
-
+  bool IsUrgentSetting(uint16_t id, uint32_t value) const {
+    // Initial window size reduction may indicate extreme memory pressure on the
+    // server. So we make it urgent and break the ReadLoop.
+    const bool did_reduce_window_size =
+        id == Http2Settings::kInitialWindowSizeWireId &&
+        value < peer().initial_window_size();
+    return did_reduce_window_size;
+  }
   //////////////////////////////////////////////////////////////////////////////
   // Plumbing Settings with Chttp2Connector class
 
   void MaybeReportInitialSettings(
       grpc_event_engine::experimental::EventEngine* event_engine) {
-    // TODO(tjagtap) [PH2][P2] Relook at this while writing server. I think this
-    // will be different for client and server.
     if (on_receive_first_settings_ != nullptr) {
       GRPC_DCHECK(state_ == SettingsState::kFirstPeerSettingsReceived);
       GRPC_DCHECK(event_engine != nullptr);
@@ -364,8 +374,6 @@ class SettingsPromiseManager final : public RefCounted<SettingsPromiseManager> {
 
   void MaybeReportInitialSettingsAbort(
       grpc_event_engine::experimental::EventEngine* event_engine) {
-    // TODO(tjagtap) [PH2][P2] Relook at this while writing server. I think this
-    // will be different for client and server.
     if (on_receive_first_settings_ != nullptr) {
       GRPC_DCHECK(event_engine != nullptr);
       GRPC_DCHECK(state_ != SettingsState::kReady);
@@ -485,6 +493,7 @@ class SettingsPromiseManager final : public RefCounted<SettingsPromiseManager> {
   // make them writable. This is tracked via channelz in case it causes any
   // performance issues in the future.
   size_t num_peer_initial_window_size_increases_ = 0;
+  Http2SettingsManager settings_;
 };
 
 }  // namespace grpc_core

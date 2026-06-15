@@ -54,12 +54,7 @@ class ReadLoopPauseRestart {
 
   // Signals that the read loop should pause. If it's already paused, this is a
   // no-op.
-  void SetPauseReadLoop() {
-    // TODO(tjagtap) [PH2][P2][Settings] Plumb with when we receive urgent
-    // settings. Example - initial window size 0 is urgent because it indicates
-    // extreme memory pressure on the server.
-    should_pause_read_loop_ = true;
-  }
+  void SetPauseReadLoop() { should_pause_read_loop_ = true; }
 
   // If SetPauseReadLoop() was called, this returns Pending and
   // registers a waker that will be woken by WakeReadLoop().
