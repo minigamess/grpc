@@ -4,7 +4,34 @@ on:
   workflow_dispatch:
 
 jobs:
+  build-macos-x64-native:
+    runs-on: macos-13
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup CMake 3.x
+        uses: lukka/get-cmake@latest
+        with:
+          cmakeVersion: 3.31.6
+
+      - name: Build grpc_csharp_ext for macOS x64
+        run: |
+          mkdir -p artifacts/csharp_ext_macos_x64
+          ARTIFACTS_OUT="$GITHUB_WORKSPACE/artifacts/csharp_ext_macos_x64" GRPC_CSHARP_BUILD_EXT_ARCH=x86_64 bash tools/run_tests/artifacts/build_artifact_csharp.sh
+
+      - name: Upload macOS x64 native artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: grpc-csharp-ext-macos-x64
+          path: artifacts/csharp_ext_macos_x64/libgrpc_csharp_ext.dylib
+
   build-unity-package:
+    needs: build-macos-x64-native
     runs-on: macos-14
     timeout-minutes: 120
 
@@ -30,10 +57,11 @@ jobs:
           bash src/csharp/nuget_helpers/create_fake_native_artifacts.sh
           cp -R src/csharp/nativelibs/csharp_ext_* input_artifacts/
 
-      - name: Build grpc_csharp_ext for macOS x64
-        run: |
-          rm -rf cmake/build
-          ARTIFACTS_OUT="$GITHUB_WORKSPACE/input_artifacts/csharp_ext_macos_x64" GRPC_CSHARP_BUILD_EXT_ARCH=x86_64 bash tools/run_tests/artifacts/build_artifact_csharp.sh
+      - name: Download macOS x64 native artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: grpc-csharp-ext-macos-x64
+          path: input_artifacts/csharp_ext_macos_x64
 
       - name: Build grpc_csharp_ext for macOS arm64
         run: |
