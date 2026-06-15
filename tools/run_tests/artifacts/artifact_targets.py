@@ -266,6 +266,12 @@ class CSharpExtArtifact:
             # set number of parallel jobs when building native extension
             environ['GRPC_CSHARP_BUILD_EXT_COMPILER_JOBS'] = str(inner_jobs)
 
+        if self.platform == 'macos':
+            if self.arch == 'x64':
+                environ['GRPC_CSHARP_BUILD_EXT_ARCH'] = 'x86_64'
+            elif self.arch == 'arm64':
+                environ['GRPC_CSHARP_BUILD_EXT_ARCH'] = 'arm64'
+
         if self.arch == 'android':
             environ['ANDROID_ABI'] = self.arch_abi
             return create_docker_jobspec(
@@ -420,6 +426,7 @@ def targets():
         CSharpExtArtifact('linux', 'x64', presubmit=True),
         CSharpExtArtifact('linux', 'aarch64', presubmit=True),
         CSharpExtArtifact('macos', 'x64', presubmit=True),
+        CSharpExtArtifact('macos', 'arm64', presubmit=True),
         CSharpExtArtifact('windows', 'x64', presubmit=True),
         CSharpExtArtifact('windows', 'x86', presubmit=True),
         CSharpExtArtifact('linux',

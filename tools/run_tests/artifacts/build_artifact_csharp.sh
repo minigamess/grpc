@@ -20,10 +20,17 @@ cd "$(dirname "$0")/../../.."
 mkdir -p cmake/build
 cd cmake/build
 
+GRPC_CSHARP_BUILD_EXT_CMAKE_ARGS=()
+if [ "${GRPC_CSHARP_BUILD_EXT_ARCH:-}" != "" ]
+then
+  GRPC_CSHARP_BUILD_EXT_CMAKE_ARGS+=("-DCMAKE_OSX_ARCHITECTURES=${GRPC_CSHARP_BUILD_EXT_ARCH}")
+fi
+
 cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo \
       -DgRPC_BACKWARDS_COMPATIBILITY_MODE=ON \
       -DgRPC_BUILD_TESTS=OFF \
       -DgRPC_XDS_USER_AGENT_IS_CSHARP=ON \
+      "${GRPC_CSHARP_BUILD_EXT_CMAKE_ARGS[@]}" \
       ../..
 
 # Use externally provided env to determine build parallelism, otherwise use default.

@@ -54,6 +54,9 @@ then
     mkdir -p csharp_ext_macos_x64
     touch csharp_ext_macos_x64/libgrpc_csharp_ext.dylib
 
+    mkdir -p csharp_ext_macos_arm64
+    touch csharp_ext_macos_arm64/libgrpc_csharp_ext.dylib
+
     mkdir -p csharp_ext_macos_ios
     touch csharp_ext_macos_ios/libgrpc_csharp_ext.a
     touch csharp_ext_macos_ios/libgrpc.a
